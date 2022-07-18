@@ -15,7 +15,6 @@ use App\Models\Year;
 
 class ArrayToDbService implements DataToDbServiceInterface
 {
-
     public static function addDataToDb(array $data): void
     {
         // очищаем бд перед парсингом новых данных

@@ -2,17 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\BodyType;
-use App\Models\Car;
-use App\Models\CarModel;
-use App\Models\Color;
-use App\Models\EngineType;
-use App\Models\GearType;
-use App\Models\Generation;
-use App\Models\Mark;
-use App\Models\Transmission;
-use App\Models\Year;
-use App\Services\XmlParserService;
+use App\Services\DataToDbService\ArrayToDbService;
+use App\Services\ParserService\XmlParserService;
 use Illuminate\Console\Command;
 
 class ParseXmlFileCommand extends Command
@@ -46,58 +37,15 @@ class ParseXmlFileCommand extends Command
         // парсим файл с помощью сервиса, получаем массив
         $data = XmlParserService::parse($filePath);
 
-        // очищаем бд перед парсингом новых данных
-        Car::get()->each->delete();
+        // считаем кол-во элементов, если в xml-файле только один offer offersCount будет 0
+        $offersCount = count(array_column($data['offers']['offer'], 'id'));
 
-        if (count($data['offers']['offer']) > 1) {
-            foreach ($data['offers']['offer'] as $key => $value) {
-                $color = Color::firstOrCreate(['title' => $value['color']]);
-                $year = Year::firstOrCreate(['title' => $value['year']]);
-                $bodyType = BodyType::firstOrCreate(['title' => $value['body-type']]);
-                $engineType = EngineType::firstOrCreate(['title' => $value['engine-type']]);
-                $gearType = GearType::firstOrCreate(['title' => $value['gear-type']]);
-                $transmission = Transmission::firstOrCreate(['title' => $value['transmission']]);
-
-                $carArray = [
-                    'id' => $value['id'],
-                    'year_id' => $year->id,
-                    'run' => $value['run'],
-                    'color_id' => $color->id,
-                    'body_type_id' => $bodyType->id,
-                    'engine_type_id' => $engineType->id,
-                    'transmission_id' => $transmission->id,
-                    'gear_type_id' => $gearType->id,
-                ];
-
-                $car = Car::firstOrCreate($carArray);
-
-                $marks = Mark::get()->pluck('title');
-                $carModels = CarModel::get()->pluck('title');
-
-                if (!($marks->contains($value['mark']))) {
-                    $mark = new Mark(['title' => $value['mark']]);
-                    $car->mark()->save($mark);
-
-                    if (!($carModels->contains($value['model']))) {
-                        $carModel = new CarModel(['title' => $value['model']]);
-                        $mark->carModels()->save($carModel);
-
-                        if (empty($value['generation_id'])) {
-                            $generation = new Generation([
-                                'title' => null,
-                                'generation_id' => null
-                            ]);
-                        } else {
-                            $generation = new Generation([
-                                'title' => $value['generation'],
-                                'generation_id' => $value['generation_id']
-                            ]);
-                            $carModel->generations()->save($generation);
-                        }
-                    }
-                }
-                $this->info($value['mark'] . ' ' . $value['model'] . ' added to the database');
-            }
+        if ($offersCount == 0) {
+            $value = $data['offers'];
+            ArrayToDbService::addDataToDb($value);
+        } elseif ($offersCount > 1) {
+            $value = $data['offers']['offer'];
+            ArrayToDbService::addDataToDb($value);
         } else {
             $this->info('Xml-file is empty');
         }
